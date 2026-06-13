@@ -1,0 +1,6 @@
+{
+  "pattern": "{building}-{floor}-{position}-{round}-{date}",
+  "dateFormat": "yyyyMMdd-HHmmss",
+  "allowedExtensions": [".jpg", ".jpeg", ".png", ".gif"],
+  "maxFileNameLength": 100
+}
