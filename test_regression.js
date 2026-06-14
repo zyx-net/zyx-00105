@@ -17,6 +17,7 @@ const {
   listProfilesWithDetails 
 } = require('./dist/core/profile');
 const { compareBatches, formatDiffReport } = require('./dist/core/diff');
+const { scanWorkspace } = require('./dist/core/scan');
 
 const TEST_DIR = path.join(__dirname, 'test_regression');
 const EXAMPLES_DIR = path.join(__dirname, 'examples');
@@ -646,6 +647,197 @@ async function testDiffWithRolledBackBatch() {
   }
 }
 
+async function testScanCleanWorkspace() {
+  console.log('\n=== Test 12: scan should pass on clean workspace ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created a clean archive');
+
+    const result = await scanWorkspace(outputDir);
+
+    if (result.failed !== 0) {
+      console.log(`❌ FAILED: expected 0 failed batches, got ${result.failed}`);
+      return false;
+    }
+
+    if (result.skipped !== 0) {
+      console.log(`❌ FAILED: expected 0 skipped batches, got ${result.skipped}`);
+      return false;
+    }
+
+    if (result.orphanFiles.length !== 0) {
+      console.log(`❌ FAILED: expected 0 orphan files, got ${result.orphanFiles.length}`);
+      return false;
+    }
+
+    const hasError = result.issues.some(i => i.level === 'error');
+    if (hasError) {
+      console.log(`❌ FAILED: found errors in clean workspace`);
+      return false;
+    }
+
+    console.log('✅ PASSED: scan correctly passed on clean workspace');
+    console.log(`   Stats: scanned=${result.scanned}, passed=${result.passed}, failed=${result.failed}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testScanOrphanFiles() {
+  console.log('\n=== Test 13: scan should detect orphan files ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const orphanDir = path.join(outputDir, 'archive', '1栋', '1层-消防栓');
+    const orphanFile = path.join(orphanDir, 'orphan_photo.jpg');
+    await fs.writeFile(orphanFile, 'this is an orphan file not referenced by any batch');
+    console.log('   Created orphan file');
+
+    const result = await scanWorkspace(outputDir);
+
+    if (result.orphanFiles.length !== 1) {
+      console.log(`❌ FAILED: expected 1 orphan file, got ${result.orphanFiles.length}`);
+      return false;
+    }
+
+    const hasWarning = result.issues.some(i => i.level === 'warning' && i.message.includes('孤儿'));
+    if (!hasWarning) {
+      console.log('❌ FAILED: no warning issued for orphan files');
+      return false;
+    }
+
+    console.log('✅ PASSED: scan correctly detected orphan files');
+    console.log(`   Found ${result.orphanFiles.length} orphan file(s)`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testScanCountMismatch() {
+  console.log('\n=== Test 14: scan should detect count mismatch ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    const status = await executeArchive(inputDir, config);
+    console.log(`   Created batch: ${status.batchId}`);
+
+    const archiveDir = path.join(outputDir, 'archive', '1栋', '1层-消防栓');
+    const files = await fs.readdir(archiveDir);
+    const firstFile = files.find(f => f.endsWith('.jpg'));
+    if (firstFile) {
+      await fs.remove(path.join(archiveDir, firstFile));
+      console.log(`   Removed one archived file`);
+    }
+
+    const result = await scanWorkspace(outputDir);
+
+    if (result.failed !== 1) {
+      console.log(`❌ FAILED: expected 1 failed batch, got ${result.failed}`);
+      return false;
+    }
+
+    const hasError = result.issues.some(i => i.level === 'error' && i.message.includes('数量不匹配'));
+    if (!hasError) {
+      console.log('❌ FAILED: no error issued for count mismatch');
+      return false;
+    }
+
+    console.log('✅ PASSED: scan correctly detected count mismatch');
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testScanSkipsLockedBatch() {
+  console.log('\n=== Test 15: scan should skip locked/running batches ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    const status = await executeArchive(inputDir, config);
+    console.log(`   Created batch: ${status.batchId}`);
+
+    const batchDir = path.join(outputDir, 'batches', status.batchId);
+    const statusPath = path.join(batchDir, 'status.json');
+    const currentStatus = await fs.readJson(statusPath);
+    currentStatus.status = 'running';
+    currentStatus.lock = { locked: true, lockedAt: new Date().toISOString(), lockedBy: 'test' };
+    await fs.writeJson(statusPath, currentStatus);
+    console.log('   Set batch as running/locked');
+
+    const result = await scanWorkspace(outputDir);
+
+    if (result.skipped !== 1) {
+      console.log(`❌ FAILED: expected 1 skipped batch, got ${result.skipped}`);
+      return false;
+    }
+
+    if (result.scanned !== 0) {
+      console.log(`❌ FAILED: expected 0 scanned batches, got ${result.scanned}`);
+      return false;
+    }
+
+    const hasInfo = result.issues.some(i => i.level === 'info' && i.message.includes('跳过锁定'));
+    if (!hasInfo) {
+      console.log('❌ FAILED: no info message about skipped batch');
+      return false;
+    }
+
+    console.log('✅ PASSED: scan correctly skipped locked batch');
+    console.log(`   Stats: scanned=${result.scanned}, skipped=${result.skipped}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
 async function runTests() {
   console.log('========================================');
   console.log('   Regression Tests for CLI Safety');
@@ -666,6 +858,10 @@ async function runTests() {
     if (await testProfileSwitchWithRunningBatch()) passed++; else failed++;
     if (await testDiffNormalComparison()) passed++; else failed++;
     if (await testDiffWithRolledBackBatch()) passed++; else failed++;
+    if (await testScanCleanWorkspace()) passed++; else failed++;
+    if (await testScanOrphanFiles()) passed++; else failed++;
+    if (await testScanCountMismatch()) passed++; else failed++;
+    if (await testScanSkipsLockedBatch()) passed++; else failed++;
   } catch (error) {
     console.error('\n❌ Test execution error:', error.message);
     failed++;

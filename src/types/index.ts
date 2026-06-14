@@ -203,3 +203,21 @@ export interface ExportData {
   exportedAt: string;
   batches: BatchStatus[];
 }
+
+export type ScanIssueLevel = 'info' | 'warning' | 'error';
+
+export interface ScanIssue {
+  level: ScanIssueLevel;
+  batchId?: string;
+  message: string;
+  detail?: string;
+}
+
+export interface ScanResult {
+  scanned: number;
+  skipped: number;
+  passed: number;
+  failed: number;
+  issues: ScanIssue[];
+  orphanFiles: string[];
+}

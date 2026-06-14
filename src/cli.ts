@@ -26,6 +26,7 @@ import {
   createLogEntry 
 } from './core/operationLog';
 import { importBatches, getImportPreview, validateExportFile } from './core/import';
+import { scanWorkspace, formatScanResult, formatScanResultJson } from './core/scan';
 import { DateTime } from 'luxon';
 
 const program = new Command();
@@ -764,6 +765,32 @@ program
 
     } catch (error) {
       console.error(`❌ 导入失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('scan')
+  .description('工作区健康检查')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('--json', '以 JSON 格式输出')
+  .action(async (options) => {
+    try {
+      await withLogging(options.output, 'scan', sanitizeParams(options), async () => {
+        const result = await scanWorkspace(options.output);
+        
+        if (options.json) {
+          console.log(formatScanResultJson(result));
+        } else {
+          console.log(formatScanResult(result));
+        }
+
+        if (result.failed > 0) {
+          process.exit(1);
+        }
+      });
+    } catch (error) {
+      console.error(`❌ 扫描失败: ${(error as Error).message}`);
       process.exit(1);
     }
   });
