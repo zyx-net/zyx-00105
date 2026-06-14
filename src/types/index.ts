@@ -47,6 +47,25 @@ export interface BatchStatus {
   failedCount: number;
   errors: string[];
   actions: BatchAction[];
+  lock?: LockInfo;
+}
+
+export interface LockInfo {
+  locked: boolean;
+  lockedAt?: string;
+  lockedBy?: string;
+}
+
+export interface IntegrityEntry {
+  fileName: string;
+  sha256: string;
+  size: number;
+}
+
+export interface IntegrityRecord {
+  batchId: string;
+  createdAt: string;
+  files: IntegrityEntry[];
 }
 
 export interface BatchAction {

@@ -25,6 +25,16 @@ export async function rollbackBatch(
     };
   }
 
+  if (status.lock?.locked) {
+    return {
+      success: false,
+      message: `批次 ${batchId} 正在被 ${status.lock.lockedBy} 操作锁定，无法回滚`,
+      restoredFiles: 0,
+      deletedFiles: 0,
+      errors: [],
+    };
+  }
+
   if (status.status === 'rolled_back') {
     return {
       success: false,

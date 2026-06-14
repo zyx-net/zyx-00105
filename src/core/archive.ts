@@ -1,9 +1,10 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
 import { DateTime } from 'luxon';
-import { Config, PhotoInfo, BatchStatus, BatchAction, DryRunResult } from '../types';
+import { Config, PhotoInfo, BatchStatus, BatchAction, DryRunResult, IntegrityRecord } from '../types';
 import { scanPhotos } from '../utils/photoParser';
 import { performDryRun } from './dryRun';
 
@@ -42,9 +43,17 @@ export async function executeArchive(
     failedCount: 0,
     errors: [],
     actions: [],
+    lock: {
+      locked: true,
+      lockedAt: DateTime.now().toISO(),
+      lockedBy: 'archive',
+    },
   };
 
+  await saveBatchStatus(status, config.outputBasePath);
+
   const photos = await scanPhotos(inputDir, config);
+  const integrityFiles: IntegrityRecord['files'] = [];
 
   for (const photo of photos) {
     if (photo.pointId === 'unknown') continue;
@@ -77,8 +86,16 @@ export async function executeArchive(
       await fs.copy(photo.filePath, targetPath);
 
       if (config.backupEnabled) {
-        const backupPath = path.join(backupDir, path.basename(photo.filePath));
-        await fs.copy(photo.filePath, backupPath);
+        const backupFilePath = path.join(backupDir, path.basename(photo.filePath));
+        await fs.copy(photo.filePath, backupFilePath);
+        
+        const sha256 = await calculateSHA256(backupFilePath);
+        const stats = await fs.stat(backupFilePath);
+        integrityFiles.push({
+          fileName: path.basename(backupFilePath),
+          sha256,
+          size: stats.size,
+        });
       }
 
       action.targetPath = targetPath;
@@ -100,12 +117,66 @@ export async function executeArchive(
     await createZipArchive(config.outputBasePath, 'archive', zipPath);
   }
 
+  if (config.backupEnabled && integrityFiles.length > 0) {
+    const integrity: IntegrityRecord = {
+      batchId,
+      createdAt: DateTime.now().toISO(),
+      files: integrityFiles,
+    };
+    const integrityPath = path.join(backupDir, 'integrity.json');
+    await fs.writeFile(integrityPath, JSON.stringify(integrity, null, 2));
+  }
+
   status.status = status.failedCount === 0 ? 'completed' : 'failed';
   status.completedAt = DateTime.now().toISO();
+  status.lock = {
+    locked: false,
+    lockedAt: undefined,
+    lockedBy: undefined,
+  };
 
   await saveBatchStatus(status, config.outputBasePath);
 
   return status;
+}
+
+export async function calculateSHA256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
+
+export async function verifyIntegrity(batchId: string, backupPath: string): Promise<{ valid: boolean; errors: string[] }> {
+  const backupDir = path.join(backupPath, batchId);
+  const integrityPath = path.join(backupDir, 'integrity.json');
+  
+  if (!await fs.pathExists(integrityPath)) {
+    return { valid: true, errors: [] };
+  }
+
+  const integrityContent = await fs.readFile(integrityPath, 'utf-8');
+  const integrity: IntegrityRecord = JSON.parse(integrityContent);
+  const errors: string[] = [];
+
+  for (const entry of integrity.files) {
+    const filePath = path.join(backupDir, entry.fileName);
+    if (!await fs.pathExists(filePath)) {
+      errors.push(`备份文件缺失: ${entry.fileName}`);
+      continue;
+    }
+
+    const actualHash = await calculateSHA256(filePath);
+    if (actualHash !== entry.sha256) {
+      errors.push(`哈希校验失败: ${entry.fileName} (期望: ${entry.sha256}, 实际: ${actualHash})`);
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
 }
 
 async function createZipArchive(sourceDir: string, folderName: string, outputPath: string): Promise<void> {
