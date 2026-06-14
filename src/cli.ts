@@ -34,6 +34,7 @@ program
         inspectionListPath: options.list,
         outputBasePath: options.output,
         timeWindowMinutes: Number(options.window),
+        createOutputDir: false,
       });
 
       const result = await performDryRun(options.input, config);
@@ -64,6 +65,7 @@ program
         outputBasePath: options.output,
         timeWindowMinutes: Number(options.window),
         archiveFormat: options.format as 'directory' | 'zip',
+        createOutputDir: true,
       });
 
       const dryRunResult = await performDryRun(options.input, config);

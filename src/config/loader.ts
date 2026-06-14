@@ -67,6 +67,7 @@ export async function loadConfig(options: {
   outputBasePath: string;
   archiveFormat?: 'directory' | 'zip';
   timeWindowMinutes?: number;
+  createOutputDir?: boolean;
 }): Promise<Config> {
   const [points, namingRule, inspectionList] = await Promise.all([
     loadPointConfig(options.pointConfigPath),
@@ -76,7 +77,7 @@ export async function loadConfig(options: {
 
   const outputBasePath = path.resolve(options.outputBasePath);
   
-  if (!await fs.pathExists(outputBasePath)) {
+  if (options.createOutputDir !== false && !await fs.pathExists(outputBasePath)) {
     await fs.mkdirp(outputBasePath);
   }
 

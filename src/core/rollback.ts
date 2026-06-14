@@ -3,6 +3,12 @@ import * as path from 'path';
 import { BatchStatus, RollbackResult } from '../types';
 import { loadBatchStatus } from './archive';
 
+interface RollbackConflict {
+  type: 'file_mismatch' | 'unrelated_file';
+  path: string;
+  details: string;
+}
+
 export async function rollbackBatch(
   batchId: string,
   basePath: string
@@ -47,6 +53,62 @@ export async function rollbackBatch(
       restoredFiles: 0,
       deletedFiles: 0,
       errors: [],
+    };
+  }
+
+  const conflicts: RollbackConflict[] = [];
+  const archivedTargetPaths = new Set<string>();
+
+  for (const action of status.actions) {
+    if (action.status !== 'success') continue;
+
+    const targetPath = action.targetPath;
+    archivedTargetPaths.add(targetPath);
+
+    if (await fs.pathExists(targetPath)) {
+      const stats = await fs.stat(targetPath);
+      if (stats.size !== action.photoInfo.size) {
+        conflicts.push({
+          type: 'file_mismatch',
+          path: targetPath,
+          details: `文件大小不匹配：归档记录 ${action.photoInfo.size} 字节，当前 ${stats.size} 字节`,
+        });
+        continue;
+      }
+
+      const targetDir = path.dirname(targetPath);
+      if (await fs.pathExists(targetDir)) {
+        const files = await fs.readdir(targetDir);
+        for (const file of files) {
+          const filePath = path.join(targetDir, file);
+          if (filePath === targetPath) continue;
+          
+          const fileStats = await fs.stat(filePath);
+          if (fileStats.isFile()) {
+            const relatedToBatch = status.actions.some(
+              a => a.status === 'success' && path.join(targetDir, path.basename(a.targetPath)) === filePath
+            );
+            if (!relatedToBatch) {
+              conflicts.push({
+                type: 'unrelated_file',
+                path: filePath,
+                details: `目录中存在非本次归档的文件：${filePath}`,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (conflicts.length > 0) {
+    const errorMessages = conflicts.map(c => `  [${c.type === 'file_mismatch' ? '文件不匹配' : '无关文件'}] ${c.path}: ${c.details}`);
+    return {
+      success: false,
+      message: `回滚被阻止：发现 ${conflicts.length} 个冲突\n${errorMessages.join('\n')}`,
+      restoredFiles: 0,
+      deletedFiles: 0,
+      errors: errorMessages,
     };
   }
 
