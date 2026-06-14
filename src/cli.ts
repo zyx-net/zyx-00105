@@ -27,6 +27,12 @@ import {
 } from './core/operationLog';
 import { importBatches, getImportPreview, validateExportFile } from './core/import';
 import { scanWorkspace, formatScanResult, formatScanResultJson } from './core/scan';
+import { 
+  generateReport, 
+  formatReportSummary, 
+  formatReportJson,
+  ReportResult 
+} from './core/report';
 import { DateTime } from 'luxon';
 
 const program = new Command();
@@ -791,6 +797,71 @@ program
       });
     } catch (error) {
       console.error(`❌ 扫描失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('report')
+  .description('生成统计报告')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('--from <date>', '起始日期 (YYYY-MM-DD)')
+  .option('--to <date>', '结束日期 (YYYY-MM-DD)')
+  .option('--building <name>', '按楼栋过滤')
+  .option('--json', '以 JSON 格式输出')
+  .option('--detail', '显示详细日志')
+  .option('--no-save', '不将统计摘要写回日志')
+  .action(async (options) => {
+    try {
+      const result = await generateReport(options.output, {
+        from: options.from,
+        to: options.to,
+        building: options.building,
+        json: options.json,
+      });
+
+      if (options.json) {
+        if (options.detail) {
+          console.log(formatReportJson(result));
+        } else {
+          console.log(JSON.stringify(result.summary, null, 2));
+        }
+      } else {
+        console.log(formatReportSummary(result.summary));
+        
+        if (options.detail) {
+          console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('                          详细日志                                      ');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          if (result.details.logs.length > 0) {
+            console.log(formatLogsTable(result.details.logs));
+          } else {
+            console.log('暂无操作日志');
+          }
+        }
+      }
+
+      if (!options.noSave && result.summary.totalOperations > 0) {
+        const reportSummary = {
+          reportGeneratedAt: DateTime.now().toISO(),
+          timeRange: {
+            from: result.summary.startDate,
+            to: result.summary.endDate,
+          },
+          totalOperations: result.summary.totalOperations,
+          totalBatches: result.summary.totalBatches,
+          totalPhotos: result.summary.totalPhotos,
+          successRate: result.summary.successRate,
+          warnings: result.summary.warnings.length,
+          skippedLockedBatches: result.summary.skippedLockedBatches.length,
+        };
+        
+        const entry = createLogEntry('report', reportSummary, 0, 0);
+        await appendLog(options.output, entry);
+      }
+    } catch (error) {
+      console.error(`❌ 生成报告失败: ${(error as Error).message}`);
       process.exit(1);
     }
   });

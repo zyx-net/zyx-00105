@@ -18,6 +18,10 @@ const {
 } = require('./dist/core/profile');
 const { compareBatches, formatDiffReport } = require('./dist/core/diff');
 const { scanWorkspace } = require('./dist/core/scan');
+const { 
+  generateReport,
+  formatReportSummary
+} = require('./dist/core/report');
 
 const TEST_DIR = path.join(__dirname, 'test_regression');
 const EXAMPLES_DIR = path.join(__dirname, 'examples');
@@ -838,6 +842,244 @@ async function testScanSkipsLockedBatch() {
   }
 }
 
+async function testReportCleanData() {
+  console.log('\n=== Test 16: report should work with clean data ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const result = await generateReport(outputDir, {});
+
+    if (result.summary.warnings.length > 0) {
+      console.log(`❌ FAILED: unexpected warnings: ${result.summary.warnings.join(', ')}`);
+      return false;
+    }
+
+    if (result.summary.totalBatches !== 1) {
+      console.log(`❌ FAILED: expected 1 batch, got ${result.summary.totalBatches}`);
+      return false;
+    }
+
+    if (result.summary.totalPhotos !== 4) {
+      console.log(`❌ FAILED: expected 4 photos, got ${result.summary.totalPhotos}`);
+      return false;
+    }
+
+    if (result.summary.buildingCoverage.length === 0) {
+      console.log('❌ FAILED: no building coverage data');
+      return false;
+    }
+
+    console.log('✅ PASSED: report correctly generated with clean data');
+    console.log(`   Total batches: ${result.summary.totalBatches}`);
+    console.log(`   Total photos: ${result.summary.totalPhotos}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testReportWithCorruptedLog() {
+  console.log('\n=== Test 17: report should handle corrupted log lines ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const logPath = path.join(outputDir, 'ops.log.jsonl');
+    await fs.appendFile(logPath, '\nthis is not valid json\n');
+    await fs.appendFile(logPath, '\n{"incomplete": true\n');
+    console.log('   Added corrupted log lines');
+
+    const result = await generateReport(outputDir, {});
+
+    if (result.summary.warnings.length < 2) {
+      console.log(`❌ FAILED: expected at least 2 warnings, got ${result.summary.warnings.length}`);
+      return false;
+    }
+
+    const hasCorruptionWarning = result.summary.warnings.some(w => 
+      w.includes('解析失败') || w.includes('格式不正确')
+    );
+    if (!hasCorruptionWarning) {
+      console.log('❌ FAILED: no warning about corrupted logs');
+      return false;
+    }
+
+    if (result.summary.totalBatches !== 1) {
+      console.log(`❌ FAILED: expected 1 batch, got ${result.summary.totalBatches}`);
+      return false;
+    }
+
+    console.log('✅ PASSED: report correctly handled corrupted log lines');
+    console.log(`   Warnings: ${result.summary.warnings.length}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testReportWithMissingStatusJson() {
+  console.log('\n=== Test 18: report should handle missing status.json ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const batchDir = path.join(outputDir, 'batches');
+    const batchIds = await fs.readdir(batchDir);
+    const statusPath = path.join(batchDir, batchIds[0], 'status.json');
+    await fs.remove(statusPath);
+    console.log('   Removed status.json');
+
+    const result = await generateReport(outputDir, {});
+
+    const hasMissingWarning = result.summary.warnings.some(w => 
+      w.includes('缺少 status.json')
+    );
+    if (!hasMissingWarning) {
+      console.log('❌ FAILED: no warning about missing status.json');
+      return false;
+    }
+
+    if (result.summary.totalBatches !== 0) {
+      console.log(`❌ FAILED: expected 0 batches, got ${result.summary.totalBatches}`);
+      return false;
+    }
+
+    console.log('✅ PASSED: report correctly handled missing status.json');
+    console.log(`   Warnings: ${result.summary.warnings.join(', ')}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testReportSkipsLockedBatch() {
+  console.log('\n=== Test 19: report should skip locked batches ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const batchDir = path.join(outputDir, 'batches');
+    const batchIds = await fs.readdir(batchDir);
+    const statusPath = path.join(batchDir, batchIds[0], 'status.json');
+    const status = await fs.readJson(statusPath);
+    status.lock = { locked: true, lockedAt: new Date().toISOString(), lockedBy: 'test' };
+    await fs.writeJson(statusPath, status);
+    console.log('   Locked batch');
+
+    const result = await generateReport(outputDir, {});
+
+    if (result.summary.skippedLockedBatches.length !== 1) {
+      console.log(`❌ FAILED: expected 1 skipped locked batch, got ${result.summary.skippedLockedBatches.length}`);
+      return false;
+    }
+
+    if (result.summary.totalBatches !== 0) {
+      console.log(`❌ FAILED: expected 0 batches in stats, got ${result.summary.totalBatches}`);
+      return false;
+    }
+
+    console.log('✅ PASSED: report correctly skipped locked batch');
+    console.log(`   Skipped: ${result.summary.skippedLockedBatches.join(', ')}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testReportEmptyTimeRange() {
+  console.log('\n=== Test 20: report should handle empty time range ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    await executeArchive(inputDir, config);
+    console.log('   Created archive');
+
+    const result = await generateReport(outputDir, {
+      from: '2099-01-01',
+      to: '2099-12-31',
+    });
+
+    if (result.summary.totalBatches !== 0) {
+      console.log(`❌ FAILED: expected 0 batches, got ${result.summary.totalBatches}`);
+      return false;
+    }
+
+    if (result.summary.totalOperations !== 0) {
+      console.log(`❌ FAILED: expected 0 operations, got ${result.summary.totalOperations}`);
+      return false;
+    }
+
+    if (result.summary.dailyStats.length !== 0) {
+      console.log(`❌ FAILED: expected 0 daily stats, got ${result.summary.dailyStats.length}`);
+      return false;
+    }
+
+    console.log('✅ PASSED: report correctly handled empty time range');
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
 async function runTests() {
   console.log('========================================');
   console.log('   Regression Tests for CLI Safety');
@@ -862,6 +1104,11 @@ async function runTests() {
     if (await testScanOrphanFiles()) passed++; else failed++;
     if (await testScanCountMismatch()) passed++; else failed++;
     if (await testScanSkipsLockedBatch()) passed++; else failed++;
+    if (await testReportCleanData()) passed++; else failed++;
+    if (await testReportWithCorruptedLog()) passed++; else failed++;
+    if (await testReportWithMissingStatusJson()) passed++; else failed++;
+    if (await testReportSkipsLockedBatch()) passed++; else failed++;
+    if (await testReportEmptyTimeRange()) passed++; else failed++;
   } catch (error) {
     console.error('\n❌ Test execution error:', error.message);
     failed++;
