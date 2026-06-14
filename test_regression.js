@@ -8,6 +8,15 @@ const { performDryRun } = require('./dist/core/dryRun');
 const { executeArchive, loadBatchStatus, verifyIntegrity, listBatches } = require('./dist/core/archive');
 const { rollbackBatch } = require('./dist/core/rollback');
 const { purgeOldBatches } = require('./dist/core/purge');
+const { 
+  initProfile, 
+  listProfiles, 
+  switchProfile, 
+  deleteProfile, 
+  loadProfile,
+  listProfilesWithDetails 
+} = require('./dist/core/profile');
+const { compareBatches, formatDiffReport } = require('./dist/core/diff');
 
 const TEST_DIR = path.join(__dirname, 'test_regression');
 const EXAMPLES_DIR = path.join(__dirname, 'examples');
@@ -454,6 +463,189 @@ async function testPurgeSkipsRunningBatches() {
   }
 }
 
+async function testProfileSwitchWithRunningBatch() {
+  console.log('\n=== Test 9: profile switch should fail when there are running batches ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    const pointsContent = await fs.readFile(path.join(EXAMPLES_DIR, 'points.json'), 'utf-8');
+    const pointsData = JSON.parse(pointsContent);
+    const namingContent = await fs.readFile(path.join(EXAMPLES_DIR, 'naming.json'), 'utf-8');
+    const namingRule = JSON.parse(namingContent);
+
+    await initProfile(outputDir, 'profile1', {
+      points: pointsData.points,
+      namingRule,
+      timeWindowMinutes: 60,
+    });
+
+    await initProfile(outputDir, 'profile2', {
+      points: pointsData.points,
+      namingRule,
+      timeWindowMinutes: 30,
+    });
+    console.log(`   Created two profiles: profile1 and profile2`);
+
+    await switchProfile(outputDir, 'profile1');
+    console.log(`   Switched to profile1`);
+
+    const batchDir = path.join(outputDir, 'batches');
+    await fs.ensureDir(batchDir);
+    const fakeBatchDir = path.join(batchDir, 'fake-running-batch');
+    await fs.ensureDir(fakeBatchDir);
+    await fs.writeJson(path.join(fakeBatchDir, 'status.json'), {
+      batchId: 'fake-running-batch',
+      status: 'running',
+      lock: { locked: true, lockedAt: new Date().toISOString(), lockedBy: 'archive' },
+      createdAt: new Date().toISOString(),
+      totalPhotos: 0,
+      successCount: 0,
+      failedCount: 0,
+      errors: [],
+      actions: [],
+    });
+    console.log(`   Created a fake running batch`);
+
+    const result = await switchProfile(outputDir, 'profile2');
+
+    if (result.success) {
+      console.log('❌ FAILED: profile switch succeeded when there is a running batch');
+      return false;
+    }
+
+    if (!result.message.includes('running')) {
+      console.log(`❌ FAILED: error message does not mention running batch: ${result.message}`);
+      return false;
+    }
+
+    const currentProfile = await fs.readFile(path.join(outputDir, 'config', '.current_profile'), 'utf-8').catch(() => null);
+    if (currentProfile && currentProfile.trim() === 'profile2') {
+      console.log('❌ FAILED: profile was switched despite running batch');
+      return false;
+    }
+
+    console.log('✅ PASSED: profile switch correctly rejected due to running batch');
+    console.log(`   Error message: ${result.message}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testDiffNormalComparison() {
+  console.log('\n=== Test 10: diff should compare two completed batches correctly ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    const status1 = await executeArchive(inputDir, config);
+    console.log(`   Created batch 1: ${status1.batchId}`);
+
+    await fs.remove(path.join(outputDir, 'archive'));
+    await fs.writeFile(path.join(inputDir, '2栋-2层-消防栓-1-20240101-100000.jpg'), 'test-photo-5-new-content-longer');
+
+    const status2 = await executeArchive(inputDir, config);
+    console.log(`   Created batch 2: ${status2.batchId}`);
+
+    const result = await compareBatches(outputDir, status1.batchId, status2.batchId);
+
+    if (!result.success) {
+      console.log(`❌ FAILED: diff comparison failed: ${result.message}`);
+      return false;
+    }
+
+    if (!result.result) {
+      console.log('❌ FAILED: no diff result returned');
+      return false;
+    }
+
+    const diff = result.result;
+    console.log(`   Summary: added=${diff.summary.totalAdded}, removed=${diff.summary.totalRemoved}, changed=${diff.summary.totalChanged}`);
+
+    if (diff.summary.totalChanged === 0) {
+      console.log('❌ FAILED: expected some changes between batches');
+      return false;
+    }
+
+    const diffPath = path.join(outputDir, 'batches', status2.batchId, 'diffs');
+    const diffFiles = await fs.readdir(diffPath).catch(() => []);
+    if (diffFiles.length === 0) {
+      console.log('❌ FAILED: diff result was not saved to batch directory');
+      return false;
+    }
+
+    console.log('✅ PASSED: diff correctly compared two batches');
+    console.log(`   Changed: ${diff.summary.totalChanged}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
+async function testDiffWithRolledBackBatch() {
+  console.log('\n=== Test 11: diff should fail when batch is rolled back ===');
+  
+  const { inputDir, outputDir } = await setup();
+  
+  try {
+    const config = await loadConfig({
+      pointConfigPath: path.join(EXAMPLES_DIR, 'points.json'),
+      namingRulePath: path.join(EXAMPLES_DIR, 'naming.json'),
+      inspectionListPath: path.join(EXAMPLES_DIR, 'inspection.csv'),
+      outputBasePath: outputDir,
+      createOutputDir: true,
+    });
+
+    const status1 = await executeArchive(inputDir, config);
+    console.log(`   Created batch 1: ${status1.batchId}`);
+
+    await fs.remove(path.join(outputDir, 'archive'));
+    const status2 = await executeArchive(inputDir, config);
+    console.log(`   Created batch 2: ${status2.batchId}`);
+
+    await rollbackBatch(status1.batchId, outputDir);
+    console.log(`   Rolled back batch 1`);
+
+    const result = await compareBatches(outputDir, status1.batchId, status2.batchId);
+
+    if (result.success) {
+      console.log('❌ FAILED: diff succeeded when one batch is rolled back');
+      return false;
+    }
+
+    if (!result.message.includes('rolled back')) {
+      console.log(`❌ FAILED: error message does not mention rolled back: ${result.message}`);
+      return false;
+    }
+
+    console.log('✅ PASSED: diff correctly rejected rolled back batch');
+    console.log(`   Error message: ${result.message}`);
+    return true;
+    
+  } finally {
+    await cleanup();
+  }
+}
+
 async function runTests() {
   console.log('========================================');
   console.log('   Regression Tests for CLI Safety');
@@ -471,6 +663,9 @@ async function runTests() {
     if (await testRollbackWithLockConflict()) passed++; else failed++;
     if (await testIntegrityCheckFail()) passed++; else failed++;
     if (await testPurgeSkipsRunningBatches()) passed++; else failed++;
+    if (await testProfileSwitchWithRunningBatch()) passed++; else failed++;
+    if (await testDiffNormalComparison()) passed++; else failed++;
+    if (await testDiffWithRolledBackBatch()) passed++; else failed++;
   } catch (error) {
     console.error('\n❌ Test execution error:', error.message);
     failed++;

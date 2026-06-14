@@ -1,0 +1,64 @@
+{
+  "name": "楼盘A",
+  "points": [
+    {
+      "id": "P001",
+      "name": "消防栓-1栋1层",
+      "building": "1栋",
+      "floor": "1层",
+      "position": "消防栓",
+      "required": true,
+      "description": "1栋1层走廊消防栓"
+    },
+    {
+      "id": "P002",
+      "name": "电梯-1栋1层",
+      "building": "1栋",
+      "floor": "1层",
+      "position": "电梯厅",
+      "required": true,
+      "description": "1栋1层电梯厅"
+    },
+    {
+      "id": "P003",
+      "name": "配电箱-1栋2层",
+      "building": "1栋",
+      "floor": "2层",
+      "position": "配电箱",
+      "required": false,
+      "description": "1栋2层配电箱"
+    },
+    {
+      "id": "P004",
+      "name": "消防栓-2栋1层",
+      "building": "2栋",
+      "floor": "1层",
+      "position": "消防栓",
+      "required": true,
+      "description": "2栋1层走廊消防栓"
+    },
+    {
+      "id": "P005",
+      "name": "电梯-2栋1层",
+      "building": "2栋",
+      "floor": "1层",
+      "position": "电梯厅",
+      "required": true,
+      "description": "2栋1层电梯厅"
+    }
+  ],
+  "namingRule": {
+    "pattern": "{building}-{floor}-{position}-{round}-{date}",
+    "dateFormat": "yyyyMMdd-HHmmss",
+    "allowedExtensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif"
+    ],
+    "maxFileNameLength": 100
+  },
+  "timeWindowMinutes": 120,
+  "createdAt": "2026-06-14T11:34:23.851+08:00",
+  "updatedAt": "2026-06-14T11:34:23.851+08:00"
+}

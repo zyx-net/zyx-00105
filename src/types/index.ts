@@ -119,3 +119,51 @@ export interface ExportRecord {
   status: string;
   actionType: string;
 }
+
+export interface ProfileConfig {
+  name: string;
+  points: PointConfig[];
+  namingRule: NamingRule;
+  timeWindowMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfileManager {
+  currentProfile: string | null;
+  profiles: string[];
+}
+
+export interface DiffResult {
+  batchId1: string;
+  batchId2: string;
+  comparedAt: string;
+  added: DiffEntry[];
+  removed: DiffEntry[];
+  changed: DiffChangeEntry[];
+  summary: DiffSummary;
+}
+
+export interface DiffEntry {
+  pointId: string;
+  fileName: string;
+  targetPath: string;
+  size: number;
+  capturedTime: string;
+}
+
+export interface DiffChangeEntry extends DiffEntry {
+  oldSize: number;
+  newSize: number;
+  sizeDiff: number;
+  oldCapturedTime: string;
+  newCapturedTime: string;
+  timeDiff: string;
+}
+
+export interface DiffSummary {
+  totalAdded: number;
+  totalRemoved: number;
+  totalChanged: number;
+  totalUnchanged: number;
+}

@@ -1,0 +1,87 @@
+{
+  "batchId": "26cfc0ca-a49e-4e14-a9d7-2188a0287392",
+  "status": "completed",
+  "createdAt": "2026-06-14T11:33:41.330+08:00",
+  "totalPhotos": 4,
+  "successCount": 4,
+  "failedCount": 0,
+  "errors": [],
+  "actions": [
+    {
+      "id": "4d0e52eb-1b0b-4852-83c8-8beee53d0053",
+      "type": "copy",
+      "sourcePath": "test_review\\photos_batch2\\1栋-1层-消防栓-1-20240101-080000.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_review\\output2\\archive\\1栋\\1层-消防栓\\1栋-1层-消防栓-1-20260614-113309.jpg",
+      "photoInfo": {
+        "filePath": "test_review\\photos_batch2\\1栋-1层-消防栓-1-20240101-080000.jpg",
+        "fileName": "1栋-1层-消防栓-1-20240101-080000.jpg",
+        "targetName": "1栋-1层-消防栓-1-20260614-113309.jpg",
+        "pointId": "P001",
+        "batchId": "BATCH-20240101-001",
+        "round": 1,
+        "capturedTime": "2026-06-14T11:33:09.896+08:00",
+        "size": 5
+      },
+      "timestamp": "2026-06-14T11:33:41.334+08:00",
+      "status": "success"
+    },
+    {
+      "id": "ddb66880-d7ba-4218-9c5e-9cf039b3cf8a",
+      "type": "copy",
+      "sourcePath": "test_review\\photos_batch2\\1栋-1层-电梯厅-1-20240101-081500.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_review\\output2\\archive\\1栋\\1层-电梯厅\\1栋-1层-电梯厅-1-20260614-010327.jpg",
+      "photoInfo": {
+        "filePath": "test_review\\photos_batch2\\1栋-1层-电梯厅-1-20240101-081500.jpg",
+        "fileName": "1栋-1层-电梯厅-1-20240101-081500.jpg",
+        "targetName": "1栋-1层-电梯厅-1-20260614-010327.jpg",
+        "pointId": "P002",
+        "batchId": "BATCH-20240101-001",
+        "round": 1,
+        "capturedTime": "2026-06-14T01:03:27.970+08:00",
+        "size": 4
+      },
+      "timestamp": "2026-06-14T11:33:41.341+08:00",
+      "status": "success"
+    },
+    {
+      "id": "72c5a399-0185-4fbc-93aa-bc2e1e6cbdf1",
+      "type": "copy",
+      "sourcePath": "test_review\\photos_batch2\\2栋-1层-消防栓-1-20240101-090000.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_review\\output2\\archive\\2栋\\1层-消防栓\\2栋-1层-消防栓-1-20260614-010327.jpg",
+      "photoInfo": {
+        "filePath": "test_review\\photos_batch2\\2栋-1层-消防栓-1-20240101-090000.jpg",
+        "fileName": "2栋-1层-消防栓-1-20240101-090000.jpg",
+        "targetName": "2栋-1层-消防栓-1-20260614-010327.jpg",
+        "pointId": "P004",
+        "batchId": "BATCH-20240101-001",
+        "round": 1,
+        "capturedTime": "2026-06-14T01:03:27.970+08:00",
+        "size": 4
+      },
+      "timestamp": "2026-06-14T11:33:41.344+08:00",
+      "status": "success"
+    },
+    {
+      "id": "cb718ef4-a13b-422a-ac2c-22ece453e63b",
+      "type": "copy",
+      "sourcePath": "test_review\\photos_batch2\\2栋-1层-电梯厅-1-20240101-091500.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_review\\output2\\archive\\2栋\\1层-电梯厅\\2栋-1层-电梯厅-1-20260614-010327.jpg",
+      "photoInfo": {
+        "filePath": "test_review\\photos_batch2\\2栋-1层-电梯厅-1-20240101-091500.jpg",
+        "fileName": "2栋-1层-电梯厅-1-20240101-091500.jpg",
+        "targetName": "2栋-1层-电梯厅-1-20260614-010327.jpg",
+        "pointId": "P005",
+        "batchId": "BATCH-20240101-001",
+        "round": 1,
+        "capturedTime": "2026-06-14T01:03:27.970+08:00",
+        "size": 4
+      },
+      "timestamp": "2026-06-14T11:33:41.347+08:00",
+      "status": "success"
+    }
+  ],
+  "lock": {
+    "locked": false
+  },
+  "completedAt": "2026-06-14T11:33:41.352+08:00"
+}

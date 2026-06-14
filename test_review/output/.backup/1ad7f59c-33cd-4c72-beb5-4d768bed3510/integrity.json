@@ -1,0 +1,26 @@
+{
+  "batchId": "1ad7f59c-33cd-4c72-beb5-4d768bed3510",
+  "createdAt": "2026-06-14T11:33:21.373+08:00",
+  "files": [
+    {
+      "fileName": "1栋-1层-消防栓-1-20240101-080000.jpg",
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "size": 1
+    },
+    {
+      "fileName": "1栋-1层-电梯厅-1-20240101-081500.jpg",
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "size": 4
+    },
+    {
+      "fileName": "2栋-1层-消防栓-1-20240101-090000.jpg",
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "size": 4
+    },
+    {
+      "fileName": "2栋-1层-电梯厅-1-20240101-091500.jpg",
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "size": 4
+    }
+  ]
+}
