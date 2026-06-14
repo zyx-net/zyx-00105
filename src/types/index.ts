@@ -167,3 +167,39 @@ export interface DiffSummary {
   totalChanged: number;
   totalUnchanged: number;
 }
+
+export interface OperationLogEntry {
+  timestamp: string;
+  command: string;
+  params: Record<string, unknown>;
+  exitCode: number;
+  durationMs: number;
+  error?: string;
+}
+
+export interface LogQueryOptions {
+  since?: string;
+  until?: string;
+  limit?: number;
+}
+
+export interface ImportOptions {
+  inputPath: string;
+  outputBasePath: string;
+  conflictStrategy: 'skip' | 'overwrite';
+  dryRun: boolean;
+}
+
+export interface ImportResult {
+  success: boolean;
+  message: string;
+  importedBatches: string[];
+  skippedBatches: string[];
+  errors: string[];
+}
+
+export interface ExportData {
+  version: string;
+  exportedAt: string;
+  batches: BatchStatus[];
+}
