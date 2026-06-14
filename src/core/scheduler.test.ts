@@ -67,7 +67,7 @@ describe('Scheduler Tests', () => {
       expect(task.name).toBe('Test Task');
       expect(task.enabled).toBe(true);
 
-      const schedulePath = path.join(tempDir, 'config', 'schedule.json');
+      const schedulePath = path.join(tempDir, 'schedule.json');
       expect(await fs.pathExists(schedulePath)).toBe(true);
 
       const content = await fs.readFile(schedulePath, 'utf-8');

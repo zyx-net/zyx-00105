@@ -119,7 +119,7 @@ export function getNextRunTime(expression: string, fromTime: Date = new Date()):
 }
 
 export async function getNextRunTimeForTask(task: ScheduledTask): Promise<Date> {
-  const lastRun = task.lastRunAt ? new Date(task.lastRunAt) : new Date(0);
+  const lastRun = task.lastRunAt ? new Date(task.lastRunAt) : new Date();
   return getNextRunTime(task.cronExpression, lastRun);
 }
 
@@ -277,18 +277,21 @@ export function stopScheduler(): void {
   state.runningTasks = [];
 }
 
-export function rescheduleTask(outputBasePath: string, taskId: string): void {
+export async function rescheduleTask(outputBasePath: string, taskId: string): Promise<void> {
   const existingTimer = state.scheduledTimers.get(taskId);
   if (existingTimer) {
     clearTimeout(existingTimer);
     state.scheduledTimers.delete(taskId);
   }
   
-  storage.getTaskById(outputBasePath, taskId).then(task => {
-    if (task && task.enabled) {
-      scheduleTask(outputBasePath, task);
-    }
-  });
+  if (!state.isRunning) {
+    return;
+  }
+  
+  const task = await storage.getTaskById(outputBasePath, taskId);
+  if (task && task.enabled) {
+    scheduleTask(outputBasePath, task);
+  }
 }
 
 export function getRunningTasks(): string[] {

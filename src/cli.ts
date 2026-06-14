@@ -1047,7 +1047,7 @@ scheduleCommand
       
       if (success) {
         console.log(`✅ 任务 ${options.id} 已启用`);
-        scheduler.rescheduleTask(options.output, options.id);
+        await scheduler.rescheduleTask(options.output, options.id);
       } else {
         console.log(`❌ 任务 ${options.id} 不存在`);
         process.exit(1);
@@ -1108,6 +1108,10 @@ scheduleCommand
         if (result.errorMessage) {
           console.log(`错误信息: ${result.errorMessage}`);
         }
+      }
+
+      if (result.exitCode !== undefined && result.exitCode !== 0) {
+        process.exit(result.exitCode);
       }
     } catch (error) {
       console.error(`❌ 执行任务失败: ${(error as Error).message}`);

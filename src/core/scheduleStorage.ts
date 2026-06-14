@@ -6,9 +6,7 @@ const SCHEDULE_FILE_NAME = 'schedule.json';
 const SCHEDULE_VERSION = '1.0.0';
 
 export async function getScheduleFilePath(outputBasePath: string): Promise<string> {
-  const configDir = path.join(outputBasePath, 'config');
-  await fs.ensureDir(configDir);
-  return path.join(configDir, SCHEDULE_FILE_NAME);
+  return path.join(outputBasePath, SCHEDULE_FILE_NAME);
 }
 
 export async function loadScheduleConfig(outputBasePath: string): Promise<ScheduleConfig> {
