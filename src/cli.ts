@@ -33,6 +33,7 @@ import {
   formatReportJson,
   ReportResult 
 } from './core/report';
+import { validateArchive, formatValidationResult, formatValidationResultJson } from './core/validate';
 import { DateTime } from 'luxon';
 
 const program = new Command();
@@ -862,6 +863,38 @@ program
       }
     } catch (error) {
       console.error(`❌ 生成报告失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('validate')
+  .description('校验归档完整性')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('--building <name>', '按楼栋过滤')
+  .option('--json', '以 JSON 格式输出')
+  .option('--fix', '自动清理孤立文件')
+  .action(async (options) => {
+    try {
+      await withLogging(options.output, 'validate', sanitizeParams(options), async () => {
+        const result = await validateArchive(
+          options.output,
+          options.building,
+          options.fix
+        );
+
+        if (options.json) {
+          console.log(formatValidationResultJson(result));
+        } else {
+          console.log(formatValidationResult(result));
+        }
+
+        if (!result.valid && !options.fix) {
+          process.exit(1);
+        }
+      });
+    } catch (error) {
+      console.error(`❌ 校验失败: ${(error as Error).message}`);
       process.exit(1);
     }
   });

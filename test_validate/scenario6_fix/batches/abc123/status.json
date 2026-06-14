@@ -1,0 +1,14 @@
+{
+  "batchId": "abc123",
+  "status": "completed",
+  "createdAt": "2024-01-01T08:00:00Z",
+  "completedAt": "2024-01-01T08:30:00Z",
+  "totalPhotos": 0,
+  "successCount": 0,
+  "failedCount": 0,
+  "errors": [],
+  "actions": [],
+  "lock": {
+    "locked": false
+  }
+}

@@ -221,3 +221,21 @@ export interface ScanResult {
   issues: ScanIssue[];
   orphanFiles: string[];
 }
+
+export type ValidationIssueType = 'missing_file' | 'orphan_file' | 'duplicate_reference';
+
+export interface ValidationIssue {
+  type: ValidationIssueType;
+  path: string;
+  description: string;
+  batchIds: string[];
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+  skippedLockedBatches: string[];
+  totalBatches: number;
+  totalFiles: number;
+  fixedCount: number;
+}

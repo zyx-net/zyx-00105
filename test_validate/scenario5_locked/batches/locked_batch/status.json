@@ -1,0 +1,34 @@
+{
+  "batchId": "locked_batch",
+  "status": "running",
+  "createdAt": "2024-01-01T08:00:00Z",
+  "totalPhotos": 1,
+  "successCount": 1,
+  "failedCount": 0,
+  "errors": [],
+  "actions": [
+    {
+      "id": "act001",
+      "type": "copy",
+      "sourcePath": "/path/to/source.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_validate\\scenario5_locked\\archive\\1栋\\1层-消防栓\\locked.jpg",
+      "photoInfo": {
+        "filePath": "/path/to/source.jpg",
+        "fileName": "locked.jpg",
+        "targetName": "locked.jpg",
+        "pointId": "P001",
+        "batchId": "locked_batch",
+        "round": 1,
+        "capturedTime": "2024-01-01T08:00:00Z",
+        "size": 1000
+      },
+      "timestamp": "2024-01-01T08:15:00Z",
+      "status": "success"
+    }
+  ],
+  "lock": {
+    "locked": true,
+    "lockedAt": "2024-01-01T08:00:00Z",
+    "lockedBy": "archive"
+  }
+}

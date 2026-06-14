@@ -255,7 +255,99 @@ Unchanged: 3
 - 对比已回滚批次：`Batch <batch-id> has been rolled back`
 - 对比运行中批次：`Batch <batch-id> is still running`
 
-### 9. 统计报告
+### 9. 归档完整性校验
+
+校验 archive 目录下的照片文件与 batches 中 status.json 记录的引用是否一致。
+
+```bash
+# 执行完整性校验
+pi-archiver validate -o /path/to/output
+
+# 按楼栋过滤校验
+pi-archiver validate -o /path/to/output --building 1栋
+
+# JSON 格式输出
+pi-archiver validate -o /path/to/output --json
+
+# 自动清理孤立文件（清理前会备份到 .backup/validation_fix/<timestamp>/）
+pi-archiver validate -o /path/to/output --fix
+
+# 组合使用
+pi-archiver validate -o /path/to/output --building 1栋 --fix --json
+```
+
+**参数说明:**
+- `-o, --output`: 输出基础目录
+- `--building`: 按楼栋名称过滤
+- `--json`: 以 JSON 格式输出结果
+- `--fix`: 自动清理孤立文件，清理前会备份
+
+**检测的问题类型:**
+- **引用文件缺失**: batches 中记录的文件在 archive 目录中不存在
+- **孤立文件**: archive 目录中存在但未被任何批次引用的文件
+- **重复引用**: 同一文件被多个批次引用
+
+**输出示例:**
+```
+=== 归档完整性校验报告 ===
+
+扫描批次数: 5
+扫描文件数: 40
+
+❌ 发现不一致:
+
+--- 引用文件缺失 (2) ---
+  - /path/to/output/archive/1栋/1层-消防栓/missing.jpg
+    引用文件缺失
+
+--- 孤立文件 (3) ---
+  - /path/to/output/archive/1栋/1层-电梯厅/orphan1.jpg
+  - /path/to/output/archive/2栋/2层-消防栓/orphan2.jpg
+
+--- 重复引用 (1) ---
+  - /path/to/output/archive/1栋/1层-消防栓/duplicate.jpg
+    同一文件被多个批次引用: batch1, batch2
+
+✅ 校验通过 - 归档数据完整一致
+```
+
+**JSON 输出示例:**
+```json
+{
+  "valid": false,
+  "issues": [
+    {
+      "type": "missing_file",
+      "path": "/path/to/output/archive/1栋/1层-消防栓/missing.jpg",
+      "description": "引用文件缺失",
+      "batchIds": ["abc123"]
+    },
+    {
+      "type": "orphan_file",
+      "path": "/path/to/output/archive/1栋/1层-电梯厅/orphan.jpg",
+      "description": "孤立文件未被任何批次引用",
+      "batchIds": []
+    },
+    {
+      "type": "duplicate_reference",
+      "path": "/path/to/output/archive/1栋/1层-消防栓/duplicate.jpg",
+      "description": "同一文件被多个批次引用: batch1, batch2",
+      "batchIds": ["batch1", "batch2"]
+    }
+  ],
+  "skippedLockedBatches": ["locked_batch_id"],
+  "totalBatches": 5,
+  "totalFiles": 40,
+  "fixedCount": 0
+}
+```
+
+**注意:**
+- Locked 批次会被跳过不校验
+- `--fix` 仅清理孤立文件，不处理缺失引用和重复引用
+- 清理前会自动备份到 `.backup/validation_fix/<timestamp>/`
+
+### 10. 统计报告
 
 生成归档操作的统计报告，汇总操作次数、照片数、楼栋覆盖情况等。
 

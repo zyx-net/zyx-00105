@@ -1,0 +1,33 @@
+{
+  "batchId": "batch2",
+  "status": "completed",
+  "createdAt": "2024-01-02T08:00:00Z",
+  "completedAt": "2024-01-02T08:30:00Z",
+  "totalPhotos": 1,
+  "successCount": 1,
+  "failedCount": 0,
+  "errors": [],
+  "actions": [
+    {
+      "id": "act002",
+      "type": "copy",
+      "sourcePath": "/path/to/source2.jpg",
+      "targetPath": "D:\\workSpace\\AI__SPACE\\zyx-00105\\test_validate\\scenario4_duplicate\\archive\\1栋\\1层-消防栓\\duplicate.jpg",
+      "photoInfo": {
+        "filePath": "/path/to/source2.jpg",
+        "fileName": "duplicate.jpg",
+        "targetName": "duplicate.jpg",
+        "pointId": "P001",
+        "batchId": "batch2",
+        "round": 1,
+        "capturedTime": "2024-01-02T08:00:00Z",
+        "size": 1000
+      },
+      "timestamp": "2024-01-02T08:15:00Z",
+      "status": "success"
+    }
+  ],
+  "lock": {
+    "locked": false
+  }
+}
