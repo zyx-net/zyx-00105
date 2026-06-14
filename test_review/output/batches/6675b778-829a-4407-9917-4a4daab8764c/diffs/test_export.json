@@ -1,0 +1,28 @@
+{
+  "batchId1": "26cfc0ca-a49e-4e14-a9d7-2188a0287392",
+  "batchId2": "6675b778-829a-4407-9917-4a4daab8764c",
+  "comparedAt": "2026-06-14T12:33:27.590+08:00",
+  "added": [],
+  "removed": [],
+  "changed": [
+    {
+      "pointId": "P001",
+      "fileName": "1栋-1层-消防栓-1-20240101-080000.jpg",
+      "targetPath": "d:\\workSpace\\AI__SPACE\\zyx-00105\\test_diff\\archive\\1栋\\1层-消防栓\\1栋-1层-消防栓-1-20260614-113309.jpg",
+      "size": 1,
+      "capturedTime": "2026-06-14T11:33:09.896+08:00",
+      "oldSize": 5,
+      "newSize": 1,
+      "sizeDiff": -4,
+      "oldCapturedTime": "2026-06-14T11:33:09.896+08:00",
+      "newCapturedTime": "2026-06-14T11:33:09.896+08:00",
+      "timeDiff": "+0h0m0s"
+    }
+  ],
+  "summary": {
+    "totalAdded": 0,
+    "totalRemoved": 0,
+    "totalChanged": 1,
+    "totalUnchanged": 3
+  }
+}

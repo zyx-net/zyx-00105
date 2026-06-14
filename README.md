@@ -11,6 +11,8 @@
 - **补拍合并**: 退回后可合并补拍版本
 - **导出功能**: 支持导出 JSON/CSV 格式记录
 - **持久化状态**: 重启后历史记录、补拍备注、回滚结果均可追溯
+- **Profile 管理**: 支持多楼盘配置切换，包含点位、命名规则、时间窗口的完整配置集合
+- **批次对比**: 对比两个批次的差异，检测新增、删除、变更的照片
 
 ## 安装
 
@@ -92,6 +94,166 @@ pi-archiver export -o /path/to/export -b /path/to/archive -f json
 # 导出指定批次
 pi-archiver export -o /path/to/export -b /path/to/archive -f csv -i <batch-id>
 ```
+
+### 7. Profile 管理
+
+Profile 用于管理不同项目/楼盘的配置集合，支持快速切换点位配置、命名规则和时间窗口设置。
+
+#### 7.1 创建 Profile
+
+```bash
+# 创建新的配置 profile
+pi-archiver profile init \
+  -o /path/to/output \
+  -n 楼盘A \
+  -p ./examples/points.json \
+  -r ./examples/naming.json \
+  -w 60
+```
+
+**参数说明:**
+- `-o, --output`: 输出基础目录，profile 将保存在 `{output}/config/profiles/` 下
+- `-n, --name`: Profile 名称（唯一标识）
+- `-p, --points`: 点位配置文件路径
+- `-r, --naming`: 命名规则文件路径
+- `-w, --window`: 时间窗口（分钟），默认 60
+- `--dry-run`: 预览模式，不实际创建
+
+#### 7.2 列出所有 Profile
+
+```bash
+# 列出所有配置 profile
+pi-archiver profile list -o /path/to/output
+```
+
+输出示例:
+```
+=== 配置 Profile 列表 (共 2 个) ===
+
+名称: 楼盘A [当前激活]
+创建时间: 2024-01-15 10:30:00
+点位数: 5
+---
+名称: 楼盘B
+创建时间: 2024-01-16 14:20:00
+点位数: 8
+---
+```
+
+#### 7.3 切换 Profile
+
+```bash
+# 切换到指定 profile
+pi-archiver profile switch -o /path/to/output -n 楼盘B
+```
+
+> **注意**: 如果存在运行中的批次，切换操作将被拒绝，需等待批次完成或回滚后再切换。
+
+#### 7.4 显示当前 Profile
+
+```bash
+# 显示当前激活的 profile 详细信息
+pi-archiver profile show -o /path/to/output
+
+# 以 JSON 格式输出（方便脚本调用）
+pi-archiver profile show -o /path/to/output --json
+```
+
+输出示例:
+```
+=== 当前激活的 Profile ===
+名称: 楼盘A
+存储位置: /path/to/output/config/profiles/楼盘A.json
+命名规则: {building}-{floor}-{position}-{round}-{date}
+日期格式: yyyyMMdd-HHmmss
+时间窗口: 60 分钟
+点位数: 5
+创建时间: 2024-01-15 10:30:00
+```
+
+JSON 输出示例:
+```json
+{
+  "name": "楼盘A",
+  "storagePath": "/path/to/output/config/profiles/楼盘A.json",
+  "namingPattern": "{building}-{floor}-{position}-{round}-{date}",
+  "dateFormat": "yyyyMMdd-HHmmss",
+  "timeWindowMinutes": 60,
+  "pointsCount": 5,
+  "createdAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+#### 7.5 删除 Profile
+
+```bash
+# 删除指定 profile（不能删除当前激活的 profile）
+pi-archiver profile delete -o /path/to/output -n 楼盘B
+```
+
+> **注意**: 不能删除当前激活的 profile，需先切换到其他 profile。
+
+### 8. 批次差异对比
+
+对比两个已完成批次之间的照片差异，支持新增、删除、变更检测。
+
+```bash
+# 对比两个批次
+pi-archiver diff \
+  -o /path/to/output \
+  -b1 7c31350f-e2eb-4d22-a4e3-2127406ca773 \
+  -b2 1ad7f59c-33cd-4c72-beb5-4d768bed3510
+
+# 对比并导出为 JSON
+pi-archiver diff \
+  -o /path/to/output \
+  -b1 <batch-id-1> \
+  -b2 <batch-id-2> \
+  -f json \
+  -e /path/to/diff_result.json
+
+# 对比并导出为 CSV
+pi-archiver diff \
+  -o /path/to/output \
+  -b1 <batch-id-1> \
+  -b2 <batch-id-2> \
+  -f csv \
+  -e /path/to/diff_result.csv
+```
+
+**参数说明:**
+- `-o, --output`: 输出基础目录
+- `-b1, --batch1`: 第一个批次ID（基准批次）
+- `-b2, --batch2`: 第二个批次ID（对比批次）
+- `-f, --format`: 导出格式，`json` 或 `csv`，默认 `json`
+- `-e, --export`: 导出文件路径
+- `--dry-run`: 预览模式，不保存结果
+
+**输出示例:**
+```
+=== Batch Comparison Report ===
+Batch 1: 7c31350f-e2eb-4d22-a4e3-2127406ca773
+Batch 2: 1ad7f59c-33cd-4c72-beb5-4d768bed3510
+Compared at: 2024-01-15 15:30:00
+
+--- Summary ---
+Added: 1
+Removed: 0
+Changed: 2
+Unchanged: 3
+
+--- Added Photos ---
+  [P006] 3栋-1层-消防栓-1-20240115-140000.jpg (204800 bytes)
+
+--- Changed Photos ---
+  [P001] 1栋-1层-消防栓-1-20240115-143000.jpg
+    Size: 153600 -> 184320 (+30720 bytes)
+    Time: +2h30m0s
+```
+
+**错误情况:**
+- 对比已回滚批次：`Batch <batch-id> has been rolled back`
+- 对比运行中批次：`Batch <batch-id> is still running`
 
 ## 配置文件说明
 

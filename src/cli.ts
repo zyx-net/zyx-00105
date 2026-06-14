@@ -14,7 +14,8 @@ import {
   listProfilesWithDetails, 
   switchProfile, 
   deleteProfile,
-  loadProfile 
+  loadProfile,
+  showProfile
 } from './core/profile';
 import { compareBatches, exportDiffResult, formatDiffReport } from './core/diff';
 import { DateTime } from 'luxon';
@@ -496,6 +497,41 @@ profileCommand
       console.log(`✅ ${result.message}`);
     } catch (error) {
       console.error(`❌ 删除 profile 失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+profileCommand
+  .command('show')
+  .description('显示当前激活的 profile 信息')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('--json', '以 JSON 格式输出')
+  .action(async (options) => {
+    try {
+      const result = await showProfile(options.output);
+      
+      if (!result.success) {
+        console.error(`❌ ${result.message}`);
+        process.exit(1);
+      }
+      
+      if (options.json && result.result) {
+        console.log(JSON.stringify(result.result, null, 2));
+      } else if (result.result) {
+        const createdAt = DateTime.fromISO(result.result.createdAt).toFormat('yyyy-MM-dd HH:mm:ss');
+        console.log(`=== 当前激活的 Profile ===`);
+        console.log(`名称: ${result.result.name}`);
+        console.log(`存储位置: ${result.result.storagePath}`);
+        console.log(`命名规则: ${result.result.namingPattern}`);
+        console.log(`日期格式: ${result.result.dateFormat}`);
+        console.log(`时间窗口: ${result.result.timeWindowMinutes} 分钟`);
+        console.log(`点位数: ${result.result.pointsCount}`);
+        console.log(`创建时间: ${createdAt}`);
+      } else {
+        console.log(result.message);
+      }
+    } catch (error) {
+      console.error(`❌ 显示 profile 失败: ${(error as Error).message}`);
       process.exit(1);
     }
   });

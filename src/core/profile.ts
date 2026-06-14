@@ -207,3 +207,51 @@ export async function listProfilesWithDetails(
   
   return result;
 }
+
+export interface ShowProfileResult {
+  name: string;
+  storagePath: string;
+  namingPattern: string;
+  dateFormat: string;
+  timeWindowMinutes: number;
+  pointsCount: number;
+  createdAt: string;
+}
+
+export async function showProfile(
+  basePath: string
+): Promise<{ success: boolean; message: string; result?: ShowProfileResult }> {
+  const currentProfileName = await getCurrentProfile(basePath);
+  
+  if (!currentProfileName) {
+    return {
+      success: false,
+      message: 'No active profile found',
+    };
+  }
+  
+  const profile = await loadProfile(basePath, currentProfileName);
+  
+  if (!profile) {
+    return {
+      success: false,
+      message: `Profile "${currentProfileName}" not found`,
+    };
+  }
+  
+  const storagePath = getProfilePath(basePath, currentProfileName);
+  
+  return {
+    success: true,
+    message: `Current profile: ${currentProfileName}`,
+    result: {
+      name: profile.name,
+      storagePath,
+      namingPattern: profile.namingRule.pattern,
+      dateFormat: profile.namingRule.dateFormat,
+      timeWindowMinutes: profile.timeWindowMinutes,
+      pointsCount: profile.points.length,
+      createdAt: profile.createdAt,
+    },
+  };
+}
