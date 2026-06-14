@@ -35,6 +35,9 @@ import {
 } from './core/report';
 import { validateArchive, formatValidationResult, formatValidationResultJson } from './core/validate';
 import { DateTime } from 'luxon';
+import { v4 as uuidv4 } from 'uuid';
+import * as scheduleStorage from './core/scheduleStorage';
+import * as scheduler from './core/scheduler';
 
 const program = new Command();
 
@@ -667,6 +670,7 @@ program
   .option('-n <count>', '限制条数', '20')
   .option('--json', '以 JSON 格式输出')
   .option('--clear', '清空日志')
+  .option('--task <taskId>', '按任务ID或任务名称过滤')
   .action(async (options) => {
     try {
       if (options.clear) {
@@ -679,6 +683,7 @@ program
         since: options.since,
         until: options.until,
         limit: Number(options.n),
+        taskId: options.task,
       });
 
       if (options.json) {
@@ -895,6 +900,325 @@ program
       });
     } catch (error) {
       console.error(`❌ 校验失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+const scheduleCommand = program
+  .command('schedule')
+  .description('管理定时调度任务');
+
+scheduleCommand
+  .command('list')
+  .description('列出所有调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('--json', '以 JSON 格式输出')
+  .option('--next-run', '显示下次运行时间')
+  .action(async (options) => {
+    try {
+      const tasks = await scheduleStorage.listTasks(options.output);
+
+      if (options.json) {
+        const result = await Promise.all(tasks.map(async task => ({
+          ...task,
+          nextRunAt: options.nextRun && task.enabled ? 
+            (await scheduler.getNextRunTimeForTask(task)).toISOString() : undefined,
+        })));
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        if (tasks.length === 0) {
+          console.log('暂无调度任务');
+          return;
+        }
+
+        console.log(`\n=== 调度任务列表 (共 ${tasks.length} 个) ===\n`);
+        for (const task of tasks) {
+          const createdAt = DateTime.fromISO(task.createdAt).toFormat('yyyy-MM-dd HH:mm:ss');
+          const lastRunAt = task.lastRunAt ? DateTime.fromISO(task.lastRunAt).toFormat('yyyy-MM-dd HH:mm:ss') : '从未运行';
+          const nextRunAt = options.nextRun && task.enabled ? 
+            DateTime.fromJSDate(await scheduler.getNextRunTimeForTask(task)).toFormat('yyyy-MM-dd HH:mm:ss') : '-';
+          
+          console.log(`任务ID: ${task.id}`);
+          console.log(`名称: ${task.name}`);
+          console.log(`状态: ${task.enabled ? '🟢 启用' : '🔴 禁用'}`);
+          console.log(`Cron表达式: ${task.cronExpression}`);
+          console.log(`命令: ${task.command} ${task.args.join(' ')}`);
+          console.log(`创建时间: ${createdAt}`);
+          console.log(`上次运行: ${lastRunAt}`);
+          if (task.lastExitCode !== undefined) {
+            console.log(`上次退出码: ${task.lastExitCode}`);
+            console.log(`上次耗时: ${task.lastDurationMs}ms`);
+          }
+          if (options.nextRun) {
+            console.log(`下次运行: ${nextRunAt}`);
+          }
+          if (task.description) {
+            console.log(`描述: ${task.description}`);
+          }
+          console.log('---');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ 列出任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('add')
+  .description('添加新的调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .requiredOption('-n, --name <name>', '任务名称')
+  .requiredOption('-c, --cron <expression>', 'Cron表达式')
+  .requiredOption('-cmd, --command <command>', '要执行的命令')
+  .option('-a, --args <args>', '命令参数（逗号分隔）')
+  .option('-d, --description <desc>', '任务描述')
+  .option('--disabled', '创建时禁用')
+  .action(async (options) => {
+    try {
+      if (!scheduler.isValidCronExpression(options.cron)) {
+        console.error('❌ 无效的Cron表达式');
+        process.exit(1);
+      }
+
+      const args = options.args ? options.args.split(',').map((s: string) => s.trim()) : [];
+
+      const task = await scheduleStorage.addTask(options.output, {
+        id: uuidv4(),
+        name: options.name,
+        cronExpression: options.cron,
+        command: options.command,
+        args,
+        enabled: !options.disabled,
+        description: options.description,
+      });
+
+      console.log(`✅ 任务创建成功`);
+      console.log(`任务ID: ${task.id}`);
+      console.log(`名称: ${task.name}`);
+      console.log(`Cron表达式: ${task.cronExpression}`);
+      console.log(`状态: ${task.enabled ? '启用' : '禁用'}`);
+    } catch (error) {
+      console.error(`❌ 添加任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('remove')
+  .description('删除指定调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .requiredOption('-i, --id <taskId>', '任务ID')
+  .option('--dry-run', '预览模式，不实际删除')
+  .action(async (options) => {
+    try {
+      if (options.dryRun) {
+        const task = await scheduleStorage.getTaskById(options.output, options.id);
+        if (!task) {
+          console.log(`任务 ${options.id} 不存在`);
+          return;
+        }
+        console.log(`[DRY-RUN] 将删除任务: ${task.name} (${task.id})`);
+        return;
+      }
+
+      const success = await scheduleStorage.removeTask(options.output, options.id);
+      
+      if (success) {
+        console.log(`✅ 任务 ${options.id} 删除成功`);
+      } else {
+        console.log(`❌ 任务 ${options.id} 不存在`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(`❌ 删除任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('enable')
+  .description('启用指定调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .requiredOption('-i, --id <taskId>', '任务ID')
+  .action(async (options) => {
+    try {
+      const success = await scheduleStorage.enableTask(options.output, options.id);
+      
+      if (success) {
+        console.log(`✅ 任务 ${options.id} 已启用`);
+        scheduler.rescheduleTask(options.output, options.id);
+      } else {
+        console.log(`❌ 任务 ${options.id} 不存在`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(`❌ 启用任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('disable')
+  .description('禁用指定调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .requiredOption('-i, --id <taskId>', '任务ID')
+  .action(async (options) => {
+    try {
+      const success = await scheduleStorage.disableTask(options.output, options.id);
+      
+      if (success) {
+        console.log(`✅ 任务 ${options.id} 已禁用`);
+      } else {
+        console.log(`❌ 任务 ${options.id} 不存在`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(`❌ 禁用任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('run')
+  .description('立即执行指定调度任务')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .requiredOption('-i, --id <taskId>', '任务ID')
+  .option('-f, --force', '强制执行（忽略冲突）')
+  .action(async (options) => {
+    try {
+      const task = await scheduleStorage.getTaskById(options.output, options.id);
+      
+      if (!task) {
+        console.log(`❌ 任务 ${options.id} 不存在`);
+        process.exit(1);
+      }
+
+      console.log(`🚀 开始执行任务: ${task.name}`);
+      
+      const result = await scheduler.runTask(options.output, task, options.force);
+      
+      if (result.conflictDetected) {
+        console.log(`⚠️ 任务被跳过 - 检测到执行冲突（其他任务正在运行）`);
+      } else if (result.status === 'completed') {
+        console.log(`✅ 任务执行完成，退出码: ${result.exitCode}`);
+        console.log(`耗时: ${result.durationMs}ms`);
+      } else if (result.status === 'failed') {
+        console.log(`❌ 任务执行失败，退出码: ${result.exitCode}`);
+        if (result.errorMessage) {
+          console.log(`错误信息: ${result.errorMessage}`);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ 执行任务失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('start')
+  .description('启动调度器')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .action(async (options) => {
+    try {
+      if (scheduler.isSchedulerRunning()) {
+        console.log('调度器已在运行中');
+        return;
+      }
+
+      await scheduler.startScheduler(options.output);
+      console.log('✅ 调度器已启动');
+      
+      const tasks = await scheduleStorage.listTasks(options.output);
+      const enabledTasks = tasks.filter(t => t.enabled);
+      console.log(`已调度 ${enabledTasks.length} 个任务`);
+    } catch (error) {
+      console.error(`❌ 启动调度器失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('stop')
+  .description('停止调度器')
+  .action(async () => {
+    try {
+      if (!scheduler.isSchedulerRunning()) {
+        console.log('调度器未运行');
+        return;
+      }
+
+      scheduler.stopScheduler();
+      console.log('✅ 调度器已停止');
+    } catch (error) {
+      console.error(`❌ 停止调度器失败: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+scheduleCommand
+  .command('next-run')
+  .description('预览任务下次触发时间')
+  .requiredOption('-o, --output <dir>', '输出基础目录')
+  .option('-i, --id <taskId>', '指定任务ID（不指定则显示所有）')
+  .option('--json', '以 JSON 格式输出')
+  .action(async (options) => {
+    try {
+      const tasks = options.id 
+        ? [await scheduleStorage.getTaskById(options.output, options.id)].filter(Boolean)
+        : await scheduleStorage.listTasks(options.output);
+
+      if (tasks.length === 0) {
+        console.log('暂无任务');
+        return;
+      }
+
+      const results = await Promise.all(tasks.map(async task => {
+        if (!task || !task.enabled) {
+          return {
+            id: task?.id,
+            name: task?.name,
+            cronExpression: task?.cronExpression,
+            nextRunAt: null,
+            reason: task?.enabled ? '未知错误' : '任务已禁用',
+          };
+        }
+        const nextRun = await scheduler.getNextRunTimeForTask(task);
+        const now = new Date();
+        const diffMs = nextRun.getTime() - now.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        return {
+          id: task.id,
+          name: task.name,
+          cronExpression: task.cronExpression,
+          nextRunAt: nextRun.toISOString(),
+          nextRunAtFormatted: DateTime.fromJSDate(nextRun).toFormat('yyyy-MM-dd HH:mm:ss'),
+          timeFromNow: diffMins < 60 
+            ? `${diffMins} 分钟` 
+            : `${Math.floor(diffMins / 60)} 小时 ${diffMins % 60} 分钟`,
+        };
+      }));
+
+      if (options.json) {
+        console.log(JSON.stringify(results, null, 2));
+      } else {
+        console.log(`\n=== 下次运行时间预览 ===\n`);
+        for (const result of results) {
+          if (!result.nextRunAt) {
+            console.log(`任务: ${result.name} (${result.id})`);
+            console.log(`状态: ${result.reason}`);
+          } else {
+            console.log(`任务: ${result.name} (${result.id})`);
+            console.log(`Cron: ${result.cronExpression}`);
+            console.log(`下次运行: ${result.nextRunAtFormatted}`);
+            console.log(`距离现在: ${result.timeFromNow}`);
+          }
+          console.log('---');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ 获取下次运行时间失败: ${(error as Error).message}`);
       process.exit(1);
     }
   });

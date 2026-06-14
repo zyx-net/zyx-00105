@@ -48,6 +48,12 @@ export async function readLogs(
     }
   }
 
+  if (options.taskId) {
+    entries = entries.filter(e => 
+      e.params.taskId === options.taskId || e.params.taskName === options.taskId
+    );
+  }
+
   entries.sort((a, b) => 
     DateTime.fromISO(b.timestamp).toMillis() - DateTime.fromISO(a.timestamp).toMillis()
   );

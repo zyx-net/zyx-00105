@@ -181,6 +181,7 @@ export interface LogQueryOptions {
   since?: string;
   until?: string;
   limit?: number;
+  taskId?: string;
 }
 
 export interface ImportOptions {
@@ -238,4 +239,44 @@ export interface ValidationResult {
   totalBatches: number;
   totalFiles: number;
   fixedCount: number;
+}
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  cronExpression: string;
+  command: string;
+  args: string[];
+  enabled: boolean;
+  createdAt: string;
+  lastRunAt?: string;
+  lastExitCode?: number;
+  lastDurationMs?: number;
+  nextRunAt?: string;
+  description?: string;
+}
+
+export interface ScheduleConfig {
+  version: string;
+  tasks: ScheduledTask[];
+  lastModified: string;
+}
+
+export interface TaskRunLog {
+  timestamp: string;
+  taskId: string;
+  taskName: string;
+  status: 'running' | 'completed' | 'skipped' | 'failed';
+  exitCode?: number;
+  durationMs?: number;
+  errorMessage?: string;
+  conflictDetected?: boolean;
+  forced?: boolean;
+  command: string;
+}
+
+export interface ScheduleManagerState {
+  isRunning: boolean;
+  runningTasks: string[];
+  scheduledTimers: Map<string, ReturnType<typeof setTimeout>>;
 }
